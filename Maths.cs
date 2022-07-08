@@ -15,6 +15,20 @@ public static class Maths
     public static float Min(float a, float b) => a < b ? a : b;
     public static float Max(float a, float b) => a > b ? a : b;
 
+    public static int Min(int a, int b) => a < b ? a : b;
+    public static int Max(int a, int b) => a > b ? a : b;
+
+    public static int Length(this int number)
+    {
+        int i = 1;
+        while (number >= 10)
+        {
+            number /= 10;
+            i++;
+        }
+        return i;
+    }
+
     /// <summary>
     /// Converts value into "Entropy" from information theory
     /// </summary>

@@ -13,12 +13,17 @@ class SquirdleGuesser
 {
     public static PokemonData[] PokemonDB;
     public static PokemonSearch PokeSearch;
+    public static PokemonData[] PokemonList = new PokemonData[0];
+    public static PokemonData SelectedPokemon = null;
+    public static bool GuessingMode = false;
+    public static bool CheatingMode = false;
     //public static List<Guess> Guesses = new List<Guess>();
 
     public static void Main(string[] args)
     {
-        // Deserialize the database of pokemon to a static list
-        PokemonDB = JsonSerializer.Deserialize<PokemonData[]>(PokeDB.database, new JsonSerializerOptions { IncludeFields = true });
+        Console.OutputEncoding = System.Text.Encoding.UTF8; // To show nidoran symbol
+
+        PokemonDB = PokeDB.Database;
         PokeSearch = new();
 
         #region Two-step calculation
@@ -31,24 +36,24 @@ class SquirdleGuesser
 
             var guesser = PokemonDB[i];
 
-            List<Guess> guesses = GetListFromGuesser(guesser, PokemonDB);
+            List<Guess> guesses = GetListOfTemplates(guesser, PokemonDB);
 
             double firstStepEntropy = 0;
             double secondStepEntropy = 0;
             for (int j = 0; j < guesses.Count; j++)
             {
                 var pokemons = PokemonSearch.Filter(guesses[j], PokemonDB).ToArray();
-                firstStepEntropy += ToEntropy(PokemonDB.Length, pokemons.Count())*((double)guesses[j].GuessId/PokemonDB.Length);
+                firstStepEntropy += ToEntropy(PokemonDB.Length, pokemons.Count())*((double)guesses[j].GuessNumber/PokemonDB.Length);
 
                 for (int k = 0; k < PokemonDB.Length; k++)
                 {
                     var guesser2 = PokemonDB[k];
-                    List<Guess> guesses2 = GetListFromGuesser(guesser2, pokemons);
+                    List<Guess> guesses2 = GetListOfTemplates(guesser2, pokemons);
                     double entropySum = 0;
                     for (int l = 0; l < guesses2.Count; l++)
                     {
                         int pokemons2 = PokemonSearch.Filter(guesses2[l], pokemons).Count();
-                        entropySum += ToEntropy(pokemons.Length, pokemons2) * ((double)guesses2[l].GuessId / pokemons.Length);
+                        entropySum += ToEntropy(pokemons.Length, pokemons2) * ((double)guesses2[l].GuessNumber / pokemons.Length);
                     }
                     if (entropySum > secondStepEntropy)
                         secondStepEntropy = entropySum;
@@ -59,15 +64,82 @@ class SquirdleGuesser
             PokemonDB[i].Information = (float)firstStepEntropy;
             PokemonDB[i].InformationDouble = (float)secondStepEntropy;
         }
-
-        string json = JsonSerializer.Serialize<PokemonData[]>(PokemonDB, new JsonSerializerOptions { IncludeFields = true });
+        Thread.CurrentThread.CurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
+        string pokeDB = "public static PokemonData[] database1 = {\n";
+        for (int i = 0; i < PokemonDB.Length; i++)
+        {
+            var pokemon = PokemonDB[i];
+            pokeDB += "\t\tnew PokemonData {\n" +
+            $"\t\t\tName = \"{pokemon.Name}\",\n" +
+            $"\t\t\tGeneration = {pokemon.Generation},\n" +
+            $"\t\t\tHeight = {pokemon.Height}f,\n" +
+            $"\t\t\tWeight = {pokemon.Weight}f,\n" +
+            $"\t\t\tMainType = {pokemon.MainType}, \n" +
+            $"\t\t\tSubType = {pokemon.SubType}, \n" +
+            $"\t\t\tEntropy = {pokemon.Information}f,\n" +
+            $"\t\t\tEntropySecondStep = {pokemon.InformationDouble}f" + "},\n";
+        }
+        pokeDB += "};";
+        
+        //string json = JsonSerializer.Serialize<PokemonData[]>(PokemonDB, new JsonSerializerOptions { IncludeFields = true }).Replace("\"","\\\"");
+        using (StreamWriter sw = File.CreateText(@"X:\PokeDB4.json"))
+            sw.Write(pokeDB);
         */
         #endregion
+
+        #region Average guess calcualtion
+        /*
+        CheatingMode = true;
+        int[] guessesList = new int[55];
+        int guesses = 0;
+        for (int i = 0; i < PokemonDB.Length; i++)
+        {
+            int localGuess = 0;
+            Reset();
+            var guessedPokemon = PokemonDB[i];
+            if (i%50 == 0)
+                Console.WriteLine(i);
+            while (true)
+            {
+                Array.Sort(PokemonDB);
+                    PokemonData guesser;
+                if (PokeSearch.GuessesList.Count == 0)
+                    guesser = PokemonDB[0];
+                else
+                    guesser = PokemonDB[0];
+
+                //for (int j = 1; j < PokemonDB.Length; j++)
+                //    if (guesser.Entropy == PokemonDB[j].Entropy && PokeSearch.FilteredPokemons.Contains(guesser))
+                //        guesser = PokemonDB[j];
+                if (guesser == guessedPokemon)
+                {
+                    localGuess++;
+                    break;
+                }
+                PokeSearch.AddGuess(new Guess(guesser, guessedPokemon));
+                localGuess++;
+            }
+            guesses += localGuess;
+            guessesList[localGuess]++;
+        }
+        Console.WriteLine((float)guesses/PokemonDB.Length);
+        Console.ReadKey();
+        */
         // Do the thing
+        #endregion
+
         while (true)
         {
-            MakeGuess();
+            PokeConsole.Start();
         }
+    }
+
+    public static void Reset()
+    {
+        PokemonDB = PokeDB.Database;
+        PokeSearch = new();
+        PokemonList = new PokemonData[0];
+        SelectedPokemon = null;
     }
 
     /// <summary>
@@ -75,29 +147,29 @@ class SquirdleGuesser
     /// Makes your console look good, but unreadable <para/>
     /// I am sorry if you ever try to understand it
     /// </summary>
-    static void MakeGuess()
+    static void MakeGuessWordle()
     {
         Console.Clear();
         PokemonData Pokemon = null;
         while (Pokemon == null)
         {
             Console.ResetColor();
-            if (PokeSearch.GuessesList.Count() != 0)
-            {
-                Console.WriteLine("All guesses:");
-                foreach (var guess in PokeSearch.GuessesList)
-                {
-                    Console.Write($"Guess №{guess.GuessNumber} - {guess.Pokemon.Name} | Expected entropy: {guess.ExpectedEntropy:F2} | Actual entropy: {guess.ActualEntropy:F2} ");
-                    WriteColored($"({(guess.ActualEntropy < guess.ExpectedEntropy ? "" : "+")}{guess.ActualEntropy - guess.ExpectedEntropy:F2})", guess.ActualEntropy < guess.ExpectedEntropy ? ConsoleColor.Red : ConsoleColor.Green);
-                }
-                Console.WriteLine();
-            }
+            //if (PokeSearch.GuessesList.Count() != 0)
+            //{
+            //    Console.WriteLine("All guesses:");
+            //    foreach (var guess in PokeSearch.GuessesList)
+            //    {
+            //        Console.Write($"Guess №{guess.GuessNumber} - {guess.Pokemon.Name} | Expected entropy: {guess.ExpectedEntropy:F2} | Actual entropy: {guess.ActualEntropy:F2} ");
+            //        WriteColored($"({(guess.ActualEntropy < guess.ExpectedEntropy ? "" : "+")}{guess.ActualEntropy - guess.ExpectedEntropy:F2})", guess.ActualEntropy < guess.ExpectedEntropy ? ConsoleColor.Red : ConsoleColor.Green);
+            //    }
+            //    Console.WriteLine();
+            //}
             if (PokeSearch.FilteredPokemons.Length == 1)
             {
                 WriteColored($"Congratulations! The pokemon you were looking for is {PokeSearch.FilteredPokemons.First().Name}", ConsoleColor.Green);
                 Console.WriteLine("\nPress Enter to restart");
                 Console.ReadLine();
-                SquirdleGuesser.Main(null);
+                Reset();
                 return;
             }
             else if (PokeSearch.GuessesList.Count() != 0)
@@ -109,7 +181,7 @@ class SquirdleGuesser
                 WriteColored($"We did not find the pokemon you are searching for", ConsoleColor.Red);
                 Console.WriteLine("\nPress Enter to restart");
                 Console.ReadLine();
-                SquirdleGuesser.Main(null);
+                Reset();
                 return;
             }
             if (PokeSearch.FilteredPokemons.Length <= 5)
@@ -185,7 +257,7 @@ class SquirdleGuesser
             else if (guessString == "reset" || guessString == "restart")
             {
                 Console.Clear();
-                SquirdleGuesser.Main(null);
+                Reset();
                 return;
             }
             else
@@ -223,7 +295,7 @@ class SquirdleGuesser
                 {
                     string typeString = foundPokemon[i].SubType != PokemonType.None ? $"{foundPokemon[i].MainType}, {foundPokemon[i].SubType}" : $"{foundPokemon[i].MainType}";
                     ConsoleColor color = PokeSearch.FilteredPokemons.Contains(foundPokemon[i]) ? ConsoleColor.White : ConsoleColor.DarkGray;
-                    if (AproxEqual(currentInfo, foundPokemon[i].Information))
+                    if (AproxEqual(currentInfo, foundPokemon[i].Entropy))
                         color = color == ConsoleColor.White ? ConsoleColor.Green : ConsoleColor.DarkYellow;
                     WriteColored($" {i + 1}{(foundPokemon.Length >= 100 ? (i + 1 < 100 ? (i + 1 < 10 ? "   " : "  ") : " ") : (i + 1 < 10 ? "  " : " "))}- ", color, false);
                     WriteHighlighted(foundPokemon[i].Name, guessString, false, color);
@@ -234,8 +306,9 @@ class SquirdleGuesser
                         new String(' ', maxHeightLength - foundPokemon[i].Height.ToString("F1").Length) +
                         $" | Weight: {foundPokemon[i].Weight:F1}" +
                         new String(' ', maxWeightLength - foundPokemon[i].Weight.ToString("F1").Length) +
-                        $" | Info: {foundPokemon[i].Information:F2}" +
-                        (PokeSearch.GuessesList.Count() == 0 ? $" [{foundPokemon[i].Information + foundPokemon[i].InformationDouble:F2}]" : ""), color);
+                        (CheatingMode ?
+                        ($" | Info: {foundPokemon[i].Entropy:F2}" + (PokeSearch.GuessesList.Count() == 0 ? $" [{foundPokemon[i].Entropy + foundPokemon[i].EntropySecondStep:F2}]" : ""))
+                        : ""), color);
                 }
                 Console.SetWindowPosition(0, 0);
                 while (true)
@@ -283,7 +356,7 @@ class SquirdleGuesser
             if (guessString.ToLower() == "repick" || guessString.ToLower() == "reselect" || guessString == "restart" || guessString == "back")
             {
                 Console.Clear();
-                MakeGuess();
+                MakeGuessWordle();
                 return;
             }
             if (guessString.Length != 5 || !Regex.IsMatch(guessString, "[LHEC^v=][EWSCX=][EWSCX=][LHEC^v=][LHEC^v=]")) // Cheeky regex
@@ -376,8 +449,8 @@ public class PokemonData : IComparable<PokemonData>
     public PokemonType SubType;
     public float Height;
     public float Weight;
-    public float Information = -1;
-    public float InformationDouble = -1;
+    public float Entropy = -1;
+    public float EntropySecondStep = -1;
 
     public PokemonData()
     {
@@ -400,17 +473,21 @@ public class PokemonData : IComparable<PokemonData>
     /// </summary>
     public int CompareTo(PokemonData obj)
     {
-        // Use information from two step calculations on the first guess
-        if (PokeSearch.GuessesList.Count == 0)
+        int comparer = 0;
+        if (CheatingMode)
         {
-            int comparer1 = -(Information + InformationDouble).CompareTo(obj.Information + obj.InformationDouble);
-            if (comparer1 != 0)
-                return comparer1;
+            // Use information from two step calculations on the first guess
+            if (PokeSearch.GuessesList.Count == 0)
+            {
+                comparer = -(Entropy + EntropySecondStep).CompareTo(obj.Entropy + obj.EntropySecondStep);
+                if (comparer != 0)
+                    return comparer;
+            }
+            // Main comparer is Information/Entropy
+            comparer = -this.Entropy.CompareTo(obj.Entropy);
+            if (comparer != 0)
+                return comparer;
         }
-        // Main comparer is Information/Entropy
-        int comparer = -this.Information.CompareTo(obj.Information);
-        if (comparer != 0)
-            return comparer;
         comparer = (PokeSearch.FilteredPokemons.Contains(this) ? -1 : 0) + (PokeSearch.FilteredPokemons.Contains(obj) ? 1 : 0);
         if (comparer != 0)
             return comparer;
@@ -461,25 +538,21 @@ public class PokemonSearch
             .Where(x => SubType[(int)x.SubType])
             .Where(x => Height.Exact is not null ? x.Height == Height.Exact : x.Height > Height.Min && x.Height < Height.Max)
             .Where(x => Weight.Exact is not null ? x.Weight == Weight.Exact : x.Weight > Weight.Min && x.Weight < Weight.Max)
+            .Where(x => FilteredPokemons is null || FilteredPokemons.Length <= 1 || !GuessesList.Select<Guess,PokemonData>(x => x.Pokemon).Contains(x))
             .ToArray();
     }
 
     public IEnumerable<PokemonData> Filter(Guess guess)
     {
-        return FilteredPokemons
-            .Where(x => (guess.Generation == ValueGuess.Equal ? guess.Pokemon.Generation == x.Generation : (guess.Generation == ValueGuess.Higher ? x.Generation > guess.Pokemon.Generation : x.Generation < guess.Pokemon.Generation))
-            && (guess.MainType == TypeGuess.Equal ? guess.Pokemon.MainType == x.MainType : (guess.MainType == TypeGuess.Switch ? guess.Pokemon.MainType == x.SubType : guess.Pokemon.MainType != x.MainType))
-            && (guess.SubType == TypeGuess.Equal ? guess.Pokemon.SubType == x.SubType : (guess.SubType == TypeGuess.Switch ? guess.Pokemon.SubType == x.MainType : guess.Pokemon.SubType != x.SubType))
-            && (guess.Height == ValueGuess.Equal ? guess.Pokemon.Height == x.Height : (guess.Height == ValueGuess.Higher ? x.Height > guess.Pokemon.Height : x.Height < guess.Pokemon.Height))
-            && (guess.Weight == ValueGuess.Equal ? guess.Pokemon.Weight == x.Weight : (guess.Weight == ValueGuess.Higher ? x.Weight > guess.Pokemon.Weight : x.Weight < guess.Pokemon.Weight)));
+        return Filter(guess, FilteredPokemons);
     }
 
     public static IEnumerable<PokemonData> Filter(Guess guess, PokemonData[] list)
     {
         return list
             .Where(x => (guess.Generation == ValueGuess.Equal ? guess.Pokemon.Generation == x.Generation : (guess.Generation == ValueGuess.Higher ? x.Generation > guess.Pokemon.Generation : x.Generation < guess.Pokemon.Generation))
-            && (guess.MainType == TypeGuess.Equal ? guess.Pokemon.MainType == x.MainType : (guess.MainType == TypeGuess.Switch ? guess.Pokemon.MainType == x.SubType : guess.Pokemon.MainType != x.MainType))
-            && (guess.SubType == TypeGuess.Equal ? guess.Pokemon.SubType == x.SubType : (guess.SubType == TypeGuess.Switch ? guess.Pokemon.SubType == x.MainType : guess.Pokemon.SubType != x.SubType))
+            && (guess.MainType == TypeGuess.Equal ? guess.Pokemon.MainType == x.MainType : (guess.MainType == TypeGuess.Switch ? guess.Pokemon.MainType == x.SubType : guess.Pokemon.MainType != x.MainType && guess.Pokemon.MainType != x.SubType))
+            && (guess.SubType == TypeGuess.Equal ? guess.Pokemon.SubType == x.SubType : (guess.SubType == TypeGuess.Switch ? guess.Pokemon.SubType == x.MainType : guess.Pokemon.SubType != x.SubType && guess.Pokemon.SubType != x.MainType))
             && (guess.Height == ValueGuess.Equal ? guess.Pokemon.Height == x.Height : (guess.Height == ValueGuess.Higher ? x.Height > guess.Pokemon.Height : x.Height < guess.Pokemon.Height))
             && (guess.Weight == ValueGuess.Equal ? guess.Pokemon.Weight == x.Weight : (guess.Weight == ValueGuess.Higher ? x.Weight > guess.Pokemon.Weight : x.Weight < guess.Pokemon.Weight)));
     }
@@ -508,6 +581,7 @@ public class PokemonSearch
                 break;
             case TypeGuess.Wrong:
                 MainType[(int)guess.Pokemon.MainType] = false;
+                SubType[(int)guess.Pokemon.MainType] = false;
                 break;
             case TypeGuess.Switch:
                 for (int i = 0; i < SubType.Length; i++)
@@ -523,6 +597,7 @@ public class PokemonSearch
                 break;
             case TypeGuess.Wrong:
                 SubType[(int)guess.Pokemon.SubType] = false;
+                MainType[(int)guess.Pokemon.SubType] = false;
                 break;
             case TypeGuess.Switch:
                 for (int i = 0; i < MainType.Length; i++)
@@ -557,20 +632,19 @@ public class PokemonSearch
                     Weight = new(Max(guess.Pokemon.Weight, Weight.Min), null, Weight.Max);
                     break;
             }
-        Console.Clear();
-        Console.WriteLine("Updating information...");
-
-        float Info = guess.Pokemon.Information;
+        float Info = guess.Pokemon.Entropy;
         float PreviousInfo = (float)-Math.Log2((double)1 / PokeSearch.FilteredPokemons.Length);
+
+        GuessesList.Add(guess);
         UpdateList();
         float NewInfo = (float)-Math.Log2((double)1 / PokeSearch.FilteredPokemons.Length);
 
         float ActualEntropy = PreviousInfo - NewInfo;
-        guess.GuessNumber = GuessesList.Count() + 1;
+        guess.GuessNumber = GuessesList.Count();
         guess.ExpectedEntropy = Info;
         guess.ActualEntropy = ActualEntropy;
-        GuessesList.Add(guess);
-        
+        //GuessesList.Add(guess);
+        GuessesList[GuessesList.Count() - 1] = guess;
         for (int i = 0; i < PokemonDB.Length; i++)
         {
             var guesser = PokemonDB[i];
@@ -582,9 +656,8 @@ public class PokemonSearch
                 int pokemons = PokemonSearch.Filter(guesses[k], FilteredPokemons).Count();
                 entropy += ToEntropy(FilteredPokemons.Length, pokemons) * ((float)guesses[k].GuessNumber / FilteredPokemons.Length);
             }
-            PokemonDB[i].Information = (float)entropy;
+            PokemonDB[i].Entropy = (float)entropy;
         }
-        Console.Clear();
         //Console.WriteLine($"Guess №{guess.GuessId}: {guess.Pokemon.Name} | Expected entropy: {Info:F2} | Actual entropy: {ActualEntropy:F2}");
 
     }
